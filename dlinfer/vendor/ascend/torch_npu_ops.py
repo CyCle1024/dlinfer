@@ -88,7 +88,7 @@ def prefill_attention(
             num_q_heads,
             "TND",
             scale=scale_value,
-            atten_mask=attn_mask,
+            atten_mask=attn_mask[0],
             actual_seq_qlen=seq_qlen_list,
             actual_seq_kvlen=seq_kvlen_list,
         )[0]
