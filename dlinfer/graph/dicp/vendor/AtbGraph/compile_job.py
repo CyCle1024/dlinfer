@@ -26,10 +26,14 @@ class AtbCompileJob(DeviceCompileJob):
 
     def _compile(self):
         try:
-            if not hasattr(torch.classes.ModelTorch, "ModelTorch"):
-                torch.classes.load_library('/data2/chenchiyu/atb_dev/AscendATB/output/atb_speed/lib/libatb_speed_torch.so')
+            if not hasattr(torch.classes.TorchModel, "TorchModel"):
+                current_dir = os.path.dirname(__file__)
+                lib_path = os.path.join(current_dir, 'codegen/libdicp_model.so')
+                torch.classes.load_library(lib_path)
         except Exception as e:
-            torch.classes.load_library('/data2/chenchiyu/atb_dev/AscendATB/output/atb_speed/lib/libatb_speed_torch.so')
+            current_dir = os.path.dirname(__file__)
+            lib_path = os.path.join(current_dir, 'codegen/libdicp_model.so')
+            torch.classes.load_library(lib_path)
 
     def get_key(self):
         return self._key
