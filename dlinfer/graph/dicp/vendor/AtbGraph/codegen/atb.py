@@ -4,23 +4,11 @@ from typing import Any, List
 from torch.fx.node import Node
 
 from torch._inductor.utils import IndentedBuffer
-from dlinfer.graph.dicp.dynamo_bridge.utils import symint_in_shape, process_sym_name
-from dlinfer.graph.dicp.vendor.AtbGraph.codegen.utils import (
-    get_ascend_dtype,
-    get_cpp_dtype,
-    get_ascend_dtype_num,
-    get_torch_dtype,
-    AclFormat,
-    AclDataType,
-    get_acl_dtype,
-    remove_duplicates,
-)
+from dlinfer.graph.dicp.dynamo_bridge.utils import symint_in_shape
 from dlinfer.graph.dicp.vendor.AtbGraph.codegen.atb_graph import Graph, parse_graph
 from dlinfer.graph.dicp.vendor.AtbGraph.codegen.atb_op import AtbOverrides
 
 graph_id = 0
-
-precision_check = bool(os.environ.get("DICP_ASCEND_PRECISION_CHECK", False))
 
 
 def get_graph_id():
@@ -53,32 +41,13 @@ class AtbCodegen(torch.fx.Interpreter):
         self.input_args = []
         self.output_args = []
 
-        self.dynamic_inputs = []
-        self.dynamic_shape = []
-        self.actual_shape = []
-        self.dynamic_index = []
-        self.symint_outputs = []
-        self.sym_input_names = []
-
-        self.data_nodes = []
-        self.common_nodes = []
         self.graph_input_names = []
         self.py_output_names = []
         self.graph_output_names = []
-        self.build_options = []
-
-        self.folder = folder
-        self.graph_key = graph_key
 
         self.sym_to_inputs = {}
         self.sym_in_args = {}
-        
-        # aten_graph.print_readable()
-        # graph.print_readable()
 
-        # for modified args return
-        self.assign_args = []
-        self.cpu_tensor = []
         self.atb_graph = Graph(str(get_graph_id()))
 
         super().__init__(graph)
@@ -88,15 +57,8 @@ class AtbCodegen(torch.fx.Interpreter):
         self.input_args.append(self.cur_node)
 
         fake_tensor = self.cur_node.meta['val']
-        format = "ND"
-        index = -1
-
         if isinstance(fake_tensor, torch.SymInt):
-            dims = [1]
-            data_type = "INT32"
-            format = "ND"
             self.sym_to_inputs[fake_tensor.node.str()] = name
-            self.sym_input_names.append(name)
         elif symint_in_shape(fake_tensor.shape):
             # mention symint position in args
             # dynamic shape feature
@@ -105,59 +67,17 @@ class AtbCodegen(torch.fx.Interpreter):
                     st = dim.node.str()
                     if st not in self.sym_in_args:
                         self.sym_in_args[st] = (name, idx)
-
-            # deal with dynamic shape -1
-            shape = [-1 if isinstance(elem, torch.SymInt)
-                     else elem for elem in fake_tensor.shape]
-            actual_shape = [elem.node.str() if isinstance(
-                elem, torch.SymInt) else str(elem) for elem in fake_tensor.shape]
-            self.dynamic_inputs.append(self.args_dict[name])
-            self.dynamic_shape.append(shape)
-            self.actual_shape.append(actual_shape)
-            self.dynamic_index.append(len(self.graph_input_names))
-            dims = shape
-            data_type = get_ascend_dtype(fake_tensor.dtype).upper()
-        else:
-            dims = list(fake_tensor.shape)
-            data_type = get_ascend_dtype(fake_tensor.dtype).upper()
-
-        if 'native_memory_format' in self.cur_node.meta:
-            format = self.cur_node.meta['native_memory_format']
-        # gen data_nodes
-        self.data_nodes.append({
-            "op_name": self.args_dict[name],
-            "op_type": "Data",
-            "dims": dims,
-            "format": format,
-            "data_type": data_type,
-            "cpp_data_type": data_type,
-            "index": index
-        })
         self.graph_input_names.append(self.args_dict[name])
 
     def call_function(self, name, target, args, kwargs):
         if name not in self.args_dict.keys():
             self.args_dict[name] = name
 
-        if hasattr(self.cur_node, 'meta'):
-            if 'prop' in self.cur_node.meta and 'cpu_tensor' in self.cur_node.meta['prop']:
-                self.cpu_tensor.append(self.cur_node.meta['prop']['cpu_tensor'])
-            if 'prop' in self.cur_node.meta and 'assign_args' in self.cur_node.meta['prop']:
-                self.assign_args.append(self.cur_node.meta['prop']['assign_args'])
-
         _, args_list = AtbOverrides.gen_args(
             self.args_dict[name], self.args_dict, args)
         real_op = process_name(name, target)
         op = getattr(self.override, real_op)(*args_list, **kwargs)
         self.atb_graph.add_node(op)
-
-    def get_attr(self, name, target, args, kwargs):
-        assert isinstance(target, str)
-        attr = self.fetch_attr(target)
-        assert (isinstance(attr, torch.Tensor))
-        self.args_dict[name] = name
-        op = getattr(self.override, 'get_const_attr')(name, attr)
-        self.common_nodes.append(op)
 
     def call_method(self, name, target, args, kwargs):
         pass
@@ -195,8 +115,6 @@ class AtbCodegen(torch.fx.Interpreter):
                 else:
                     real_output_args.append(node)
                     self.graph_output_names.append(name)
-                if name in symint_inputs:
-                    self.symint_outputs.append(name)
             else:
                 self.py_output_names.append(str(node))
         self.output_args = real_output_args
@@ -204,6 +122,7 @@ class AtbCodegen(torch.fx.Interpreter):
     def gen_import_code(self):
         self.import_code.splice(
             """
+                import os
                 import torch
                 import torch_npu
                 import random
@@ -211,6 +130,8 @@ class AtbCodegen(torch.fx.Interpreter):
                 from torch import empty_strided, as_strided, device
                 from dlinfer.graph.dicp.dynamo_bridge.compile import AsyncCompileKernel
                 from dlinfer.graph.dicp.vendor.AtbGraph.compile_job import AtbCompileJob
+                
+                print('### codegen python file path: ', os.path.abspath(__file__))
 
                 aten = torch.ops.aten
                 assert_size_stride = torch._C._dynamo.guards.assert_size_stride
@@ -249,7 +170,6 @@ class AtbCodegen(torch.fx.Interpreter):
                     call_body.writeline(f"{key} = {self.sym_to_inputs[key]}")
             
         # gen fixed output shape
-        call_body.writeline('''output_tensor_descs = {"outputTensorDescs": [], "hostTensors": []}''')
         graph_input_names = self.atb_graph.inputs
         graph_output_names = self.atb_graph.outputs
 
@@ -259,7 +179,7 @@ class AtbCodegen(torch.fx.Interpreter):
                 pass
             param = self.output_tensor_descs['param'][output]
             create_info = self.output_tensor_descs['create'][output]
-            call_body.writeline(f'''output_tensor_descs["outputTensorDescs"].append({param})''')
+            # call_body.writeline(f'''output_tensor_descs["outputTensorDescs"].append({param})''')
             if create_info['input'] is None:
                 device = 'npu'
                 dtype = create_info['dtype']
@@ -273,6 +193,7 @@ class AtbCodegen(torch.fx.Interpreter):
                 input = create_info['input']
                 call_body.writeline(f'''{output} = {input}''')
 
+        call_body.writeline('''param_dict = {"hostTensors": []}''')
         call_body.writeline(f'''host_tensor_dict = {{}}''')
         host_tensors = []
         for tensor in self.atb_graph.hosts:
@@ -283,20 +204,17 @@ class AtbCodegen(torch.fx.Interpreter):
             if tensor_name not in host_tensors:
                 call_body.writeline(f'''host_tensor_dict["{tensor_name}"] = {tensor_name}.cpu().tolist()''')
                 host_tensors.append(tensor_name)
-            call_body.writeline(f'''output_tensor_descs["hostTensors"].append({{"nodeId": {node_id}, "tensorId": {tensor_id}, "value": host_tensor_dict["{tensor_name}"] }})''')
+            call_body.writeline(f'''param_dict["hostTensors"].append({{"nodeId": {node_id}, "tensorId": {tensor_id}, "value": host_tensor_dict["{tensor_name}"] }})''')
 
-        call_body.writeline('''output_tensor_descs_string = json.dumps(output_tensor_descs)''')
-        call_body.writeline('''output_shape = output_tensor_descs_string ''')
+        call_body.writeline('''param = json.dumps(param_dict)''')
         call_body.writeline(f'''inputs = [{','.join(graph_input_names)}]''')
         
         call_body.writeline(f'''outputs = [{','.join(graph_output_names)}]''')
-        # call_body.writeline(f'''import pdb;pdb.set_trace()''')
-        call_body.writeline('kernel_cpp_0(inputs, outputs, output_shape)')
+        call_body.writeline('kernel_cpp_0(inputs, outputs, param)')
 
-        # py_output_names = self.preprocess_tensor_names(self.py_output_names)
-        # del_args = [f'del {x}' for x in self.args if x not in py_output_names]
-        # call_body.writelines(del_args)
-        # call_body.writeline("args.clear()")
+        del_args = [f'del {x}' for x in self.args if x not in self.py_output_names]
+        call_body.writelines(del_args)
+        call_body.writeline("args.clear()")
         call_body.writeline(f"return ({', '.join(self.py_output_names)})")
 
         call_func = IndentedBuffer()
@@ -338,24 +256,6 @@ class AtbCodegen(torch.fx.Interpreter):
         with main_func.indent():
             main_func.splice(main_body)
         return main_func.getvalue()
-
-
-    def expand_symint(self, d, k):
-        if isinstance(d[k], torch.SymInt):
-            if d[k].node.str().isdigit():
-                d[k] = d[k].node.hint
-            else:
-                raise RuntimeError("expand_symint failed!")
-
-    def remove_symint(self, cur):
-        if isinstance(cur, list):
-            for idx in range(len(cur)):
-                self.expand_symint(cur, idx)
-                self.remove_symint(cur[idx])
-        elif isinstance(cur, dict):
-            for k in cur.keys():
-                self.expand_symint(cur, k)
-                self.remove_symint(cur[k])
 
     def gen_graph_json(self):
         return self.atb_graph.to_json()

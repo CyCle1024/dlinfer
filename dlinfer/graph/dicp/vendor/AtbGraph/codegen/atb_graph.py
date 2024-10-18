@@ -586,7 +586,6 @@ def parse_graph(graph: Graph,
             if t_name in node_inputs_count.keys():
                 node_inputs_count[t_name] = node_inputs_count[t_name] + 1
         node_count = node_count + 1
-    # import pdb;pdb.set_trace()
     for tensor, count in node_inputs_count.items():
         if count > 0:
             node_inputs.append(tensor)

@@ -5,7 +5,6 @@ from typing import Any
 
 class AclDataType(IntEnum):
     ACL_DT_UNDEFINED = 0
-    # 在这里添加其他可能的ACL数据类型
 
 
 @dataclass
@@ -13,7 +12,6 @@ class LinearParam:
     transposeA: bool = False
     transposeB: bool = True
     hasBias: bool = True
-    # outDataType: AclDataType = AclDataType.ACL_DT_UNDEFINED
 
 
 class ElewiseType(IntEnum):
@@ -100,11 +98,11 @@ class ModelType(IntEnum):
 
 class QuantType(IntEnum):
     QUANT_UNDEFINED = 0
-    # 其他QuantType枚举值需要根据实际情况添加
+
 
 class DynamicQuantType(IntEnum):
     DYNAMIC_QUANT_UNDEFINED = 0
-    # 其他DynamicQuantType枚举值需要根据实际情况添加
+
 
 @dataclass
 class NormParam:

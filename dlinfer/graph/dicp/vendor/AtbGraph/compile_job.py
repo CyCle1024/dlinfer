@@ -24,7 +24,7 @@ class AtbCompileJob(DeviceCompileJob):
 
     def _compile(self):
         try:
-            if not hasattr(torch.classes.TorchModel, "TorchModel"):
+            if not hasattr(torch.classes.DICPModel, "DICPModel"):
                 current_dir = os.path.dirname(__file__)
                 lib_path = os.path.join(current_dir, 'codegen/libdicp_model.so')
                 torch.classes.load_library(lib_path)

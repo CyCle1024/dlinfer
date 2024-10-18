@@ -46,6 +46,8 @@ def preserve_meta_val():
 def atbgraph_opset_convert(
     gm: torch.fx.GraphModule,
 ):
+    # gm.print_readable()
+    # import pdb;pdb.set_trace()
     with preserve_meta_val():
         gm = ViewSymIntTransformer(gm).transform()
         gm.graph.eliminate_dead_code()
@@ -55,14 +57,11 @@ def atbgraph_opset_convert(
 
     gm = BackendPatternMatcherTransformer(
         atb_pattern_matcher, torch_patterns_cls_list_1).transform(gm)
-    # gm = BackendPatternMatcherTransformer(
-    #     atb_pattern_matcher, torch_patterns_cls_list_3).transform(gm)
 
     gm = AtenToAtbTransformer(gm).transform()
 
     # For bug in pytorch
     # Avoid for dynamic shape
     GraphTransformer.infer_shape_dtype(gm)
-    # gm.print_readable()
     return gm
 

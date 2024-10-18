@@ -27,5 +27,5 @@ endif()
 add_subdirectory(dlinfer/vendor/${DEVICE})
 
 if("$ENV{DICP}" STREQUAL "true")
-  add_subdirectory(dlinfer/graph/dicp/vendor/AtbGraph/codegen/AscendATB)
+  add_subdirectory(dlinfer/graph/dicp/vendor/AtbGraph/codegen/runtime)
 endif()

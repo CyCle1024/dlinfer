@@ -116,13 +116,6 @@ class PagedAttention(Operator):
     def infer_result(self, query, key_cache, value_cache, block_table, context_len, mask, q_head_num, kv_head_num, scale):
         return query
 
-class AddRmsNorm(Operator):
-    def __init__(self):
-        super().__init__("AddRmsNorm")
-    
-    def infer_result(self, x1, x2, gamma, epsilon):
-        return x1, x1, x1
-
 
 class Transpose(Operator):
     def __init__(self):
@@ -160,14 +153,6 @@ class SplitSharing(Operator):
         return x.split(size, dim=dim)
 
 
-class MlpGateV2(Operator):
-    def __init__(self):
-        super().__init__("MlpGateV2")
-
-    def infer_result(self, input, up, gate, down):
-        return input
-
-
 class Swish(Operator):
     def __init__(self):
         super().__init__("Swish")
@@ -183,12 +168,14 @@ class Cast(Operator):
     def infer_result(self, x, out_dtype):
         return x.to(out_dtype)
 
+
 class Sin(Operator):
     def __init__(self):
         super().__init__("Sin")
     
     def infer_result(self, x):
         return x.sin()
+
 
 class Cos(Operator):
     def __init__(self):
@@ -197,6 +184,7 @@ class Cos(Operator):
     def infer_result(self, x):
         return x.cos()
 
+
 class Concat(Operator):
     def __init__(self):
         super().__init__("Concat")
@@ -204,12 +192,14 @@ class Concat(Operator):
     def infer_result(self, x, dim):
         return torch.cat(x, dim)
 
+
 class BatchMatMul(Operator):
     def __init__(self):
         super().__init__("BatchMatMul")
     
     def infer_result(self, x1, x2):
         return x1 @ x2
+
 
 class Gather(Operator):
     def __init__(self):

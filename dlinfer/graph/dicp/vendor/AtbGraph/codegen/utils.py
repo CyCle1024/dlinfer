@@ -144,6 +144,7 @@ def get_ascend_dtype_num(dtype: str):
     else:
         raise RuntimeError(f"unknow torch data type ({dtype}) in get_ascend_dtype_num!")
 
+
 def get_ascend_dtype(dtype: torch.dtype) -> str:
     if dtype == torch.bool:
         return "BOOL"
@@ -161,21 +162,6 @@ def get_ascend_dtype(dtype: torch.dtype) -> str:
         return "BF16"
     else:
         raise RuntimeError(f"unknow torch data type ({dtype}) in get_ascend_dtype!")
-
-
-def get_cpp_dtype(dtype: torch.dtype) -> str:
-    if dtype == torch.int64:
-        return "INT64"
-    elif dtype == torch.float32:
-        return "FLOAT"
-    elif dtype == torch.int32:
-        return "INT32"
-    elif dtype == torch.float16:
-        return "FLOAT16"
-    elif dtype == torch.bool:
-        return "BOOL"
-    else:
-        raise RuntimeError(f"unknow torch data type ({dtype}) in get_cpp_dtype!")
 
 
 def remove_duplicates(lst):
