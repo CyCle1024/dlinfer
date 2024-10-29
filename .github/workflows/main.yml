@@ -5,6 +5,7 @@ on:
   push:
     branches:
       - main
+      - ci_tmp
   pull_request:
     branches:
       - main
